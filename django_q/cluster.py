@@ -380,6 +380,8 @@ def worker(task_queue, result_queue, timer, timeout=Conf.TIMEOUT):
                 res = f(*task['args'], **task['kwargs'])
                 result = (res, True)
             except Exception as e:
+                import pprint
+                logger.exception('Error executing task:\n{}'.format(pprint.pformat(task)))
                 result = ('{}'.format(e), False)
                 if error_reporter:
                     error_reporter.report()
