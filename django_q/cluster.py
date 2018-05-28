@@ -354,7 +354,7 @@ def worker(task_queue, result_queue, timer, timeout=Conf.TIMEOUT):
         timer.value = -1  # Idle
         task_count += 1
         # Get the function from the task
-        logger.info(_('{} processing [{}]').format(name, task['name']))
+        logger.info(_('{} processing {} [{}]').format(name, task['func'], task['name']))
         f = task['func']
         # if it's not an instance try to get it from the string
         if not callable(task['func']):
