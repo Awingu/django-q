@@ -408,7 +408,7 @@ def save_task(task, broker):
     if not task.get('save', Conf.SAVE_LIMIT >= 0) and task['success']:
         return
     # async next in a chain
-    if task.get('chain', None):
+    if task.get('chain', None) and task['success']:
         tasks.async_chain(task['chain'], group=task['group'], cached=task['cached'], sync=task['sync'], broker=broker)
     # SAVE LIMIT > 0: Prune database, SAVE_LIMIT 0: No pruning
     db.close_old_connections()
