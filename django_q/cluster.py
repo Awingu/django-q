@@ -287,7 +287,7 @@ def pusher(task_queue, event, broker=None):
         try:
             task_set = broker.dequeue()
         except Exception as e:
-            logger.error(e)
+            logger.exception(e)
             # broker probably crashed. Let the sentinel handle it.
             sleep(10)
             break
@@ -438,7 +438,7 @@ def save_task(task, broker):
                                 success=task['success']
                                 )
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
 
 
 def save_cached(task, broker):
@@ -483,7 +483,7 @@ def save_cached(task, broker):
                          SignedPackage.dumps(task),
                          timeout)
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
 
 
 def scheduler(broker=None):
@@ -557,7 +557,7 @@ def scheduler(broker=None):
             # save the schedule
             s.save()
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
 
 
 def set_cpu_affinity(n, process_ids, actual=not Conf.TESTING):

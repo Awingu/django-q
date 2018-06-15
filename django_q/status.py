@@ -66,7 +66,7 @@ class Stat(Status):
         try:
             self.broker.set_stat(self.key, SignedPackage.dumps(self, True), 3)
         except Exception as e:
-            logger.error(e)
+            logger.exception(e)
 
     def empty_queues(self):
         return self.done_q_size + self.task_q_size == 0
