@@ -389,7 +389,7 @@ def worker(task_queue, result_queue, timer, timeout=Conf.TIMEOUT):
                         'func',
                         'name',
                         'started'
-                    ),
+                    )
                 })))
                 result = ('{}'.format(e), False)
                 if error_reporter:
