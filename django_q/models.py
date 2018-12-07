@@ -1,4 +1,7 @@
+import nacl.secret
 from django import get_version
+from nacl.encoding import Base64Encoder
+
 try:
     from django.urls import reverse
 except ImportError: # Django < 1.10
@@ -13,14 +16,69 @@ from picklefield.fields import dbsafe_decode
 from django_q.signing import SignedPackage
 
 
+def get_box(key=None):
+    if not key:
+        from django.conf import settings
+        key = settings.BOX_KEY
+
+    return nacl.secret.SecretBox(key, encoder=Base64Encoder)
+
+
+def box_data(data, key=None):
+    """
+    :param data: data to be encrypted
+    :type data: str
+
+    :param key: encryption key (base 64 encoded)
+    :type key: str
+
+    :return: data after encryption
+    :rtype: str
+    """
+    if not data:
+        return data
+
+    return get_box(key).encrypt(
+        data.encode(), encoder=Base64Encoder
+    ).decode()
+
+
+def unbox_data(data, key=None):
+    """
+    :param data: data to be decrypted
+    :type data: str
+
+    :param key: decryption key (base 64 encoded)
+    :type key: str
+
+    :return: data after decryption
+    :rtype: str
+    """
+    if not data:
+        return data
+
+    return get_box(key).decrypt(
+        data.encode(), encoder=Base64Encoder
+    ).decode()
+
+
+class BoxedPickledObjectField(PickledObjectField):
+    def to_python(self, value):
+        return super().to_python(unbox_data(value))
+
+    def get_db_prep_value(self, value, connection=None, prepared=False):
+        return box_data(super().get_db_prep_value(
+            value, connection=connection, prepared=prepared))
+
+
 class Task(models.Model):
     id = models.CharField(max_length=32, primary_key=True, editable=False)
     name = models.CharField(max_length=100, editable=False)
     func = models.CharField(max_length=256)
     hook = models.CharField(max_length=256, null=True)
-    args = PickledObjectField(null=True, protocol=-1)
-    kwargs = PickledObjectField(null=True, protocol=-1)
-    result = PickledObjectField(null=True, protocol=-1)
+    args = BoxedPickledObjectField(null=True, protocol=-1)
+    kwargs = BoxedPickledObjectField(null=True, protocol=-1)
+    result = BoxedPickledObjectField(null=True, protocol=-1)
     group = models.CharField(max_length=100, editable=False, null=True)
     started = models.DateTimeField(editable=False)
     stopped = models.DateTimeField(editable=False)

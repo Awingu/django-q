@@ -381,7 +381,16 @@ def worker(task_queue, result_queue, timer, timeout=Conf.TIMEOUT):
                 result = (res, True)
             except Exception as e:
                 import pprint
-                logger.exception('Error executing task:\n{}'.format(pprint.pformat(task)))
+                logger.exception('Error executing task:\n{}'.format(pprint.pformat({
+                    k: task.get(k) for k in (
+                        'id',
+                        'ack_failure',
+                        'ack_id',
+                        'func',
+                        'name',
+                        'started'
+                    ),
+                })))
                 result = ('{}'.format(e), False)
                 if error_reporter:
                     error_reporter.report()
