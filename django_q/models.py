@@ -1,11 +1,12 @@
 import nacl.secret
-from django import get_version
+
 from nacl.encoding import Base64Encoder
 
-try:
-    from django.urls import reverse
-except ImportError: # Django < 1.10
-    from django.core.urlresolvers import reverse
+from django import get_version
+from django.urls import reverse
+from django.template.defaultfilters import truncatechars
+
+from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _
 from django.db import models
@@ -139,6 +140,10 @@ class Task(models.Model):
 
     def time_taken(self):
         return (self.stopped - self.started).total_seconds()
+
+    @property
+    def short_result(self):
+        return truncatechars(self.result, 100)
 
     def __unicode__(self):
         return u'{}'.format(self.name or self.id)
