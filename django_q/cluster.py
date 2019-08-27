@@ -32,7 +32,7 @@ from django_q.status import Stat, Status
 
 
 class Cluster(object):
-    def __init__(self, broker=None):
+    def __init__(self, broker=None, task_whitelist=None):
         self.broker = broker or get_broker()
         self.sentinel = None
         self.stop_event = None
@@ -40,6 +40,7 @@ class Cluster(object):
         self.pid = current_process().pid
         self.host = socket.gethostname()
         self.timeout = Conf.TIMEOUT
+        self.task_whitelist = task_whitelist
         signal.signal(signal.SIGTERM, self.sig_handler)
         signal.signal(signal.SIGINT, self.sig_handler)
 
@@ -48,7 +49,12 @@ class Cluster(object):
         self.stop_event = Event()
         self.start_event = Event()
         self.sentinel = Process(target=Sentinel,
-                                args=(self.stop_event, self.start_event, self.broker, self.timeout))
+                                args=(self.stop_event, self.start_event),
+                                kwargs={
+                                    'broker': self.broker,
+                                    'timeout': self.timeout,
+                                    'task_whitelist': self.task_whitelist,
+                                })
         self.sentinel.start()
         logger.info(_('Q Cluster-{} starting.').format(self.pid))
         while not self.start_event.is_set():
@@ -95,7 +101,7 @@ class Cluster(object):
 
 
 class Sentinel(object):
-    def __init__(self, stop_event, start_event, broker=None, timeout=Conf.TIMEOUT, start=True):
+    def __init__(self, stop_event, start_event, broker=None, timeout=Conf.TIMEOUT, start=True, task_whitelist=None):
         # Make sure we catch signals for the pool
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGTERM, signal.SIG_DFL)
@@ -110,6 +116,7 @@ class Sentinel(object):
         self.pool_size = Conf.WORKERS
         self.pool = []
         self.timeout = timeout
+        self.task_whitelist = task_whitelist
         self.task_queue = Queue(maxsize=Conf.QUEUE_LIMIT) if Conf.QUEUE_LIMIT else Queue()
         self.result_queue = Queue()
         self.event_out = Event()
@@ -135,11 +142,11 @@ class Sentinel(object):
                 return Conf.STOPPING
             return Conf.STOPPED
 
-    def spawn_process(self, target, *args):
+    def spawn_process(self, target, *args, **kwargs):
         """
         :type target: function or class
         """
-        p = Process(target=target, args=args)
+        p = Process(target=target, args=args, kwargs=kwargs)
         p.daemon = True
         if target == worker:
             p.daemon = Conf.DAEMONIZE_WORKERS
@@ -152,7 +159,8 @@ class Sentinel(object):
         return self.spawn_process(pusher, self.task_queue, self.event_out, self.broker)
 
     def spawn_worker(self):
-        self.spawn_process(worker, self.task_queue, self.result_queue, Value('f', -1), self.timeout)
+        self.spawn_process(worker, self.task_queue, self.result_queue, Value('f', -1),
+                           timeout=self.timeout, task_whitelist=self.task_whitelist)
 
     def spawn_monitor(self):
         return self.spawn_process(monitor, self.result_queue, self.broker)
@@ -337,7 +345,7 @@ def monitor(result_queue, broker=None):
     logger.info(_("{} stopped monitoring results").format(name))
 
 
-def worker(task_queue, result_queue, timer, timeout=Conf.TIMEOUT):
+def worker(task_queue, result_queue, timer, timeout=Conf.TIMEOUT, task_whitelist=None):
     """
     Takes a task from the task queue, tries to execute it and puts the result back in the result queue
     :type task_queue: multiprocessing.Queue
@@ -355,8 +363,11 @@ def worker(task_queue, result_queue, timer, timeout=Conf.TIMEOUT):
         # Get the function from the task
         logger.info(_('{} processing {} [{}]').format(name, task['func'], task['name']))
         f = task['func']
+        if task_whitelist is not None and not f in task_whitelist:
+            logger.error(_('Task not whitelisted!'))
+            result = (_('Task not whitelisted!'), False)
         # if it's not an instance try to get it from the string
-        if not callable(task['func']):
+        if not result and not callable(task['func']):
             try:
                 module, func = f.rsplit('.', 1)
                 m = importlib.import_module(module)
