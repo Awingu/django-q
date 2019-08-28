@@ -365,7 +365,7 @@ def worker(task_queue, result_queue, timer, timeout=Conf.TIMEOUT, task_whitelist
         f = task['func']
         if task_whitelist is not None and not f in task_whitelist:
             logger.error(_('Task not whitelisted!'))
-            result = (_('Task not whitelisted!'), False)
+            result = ('Task {} not whitelisted!'.format(f), False)
         # if it's not an instance try to get it from the string
         if not result and not callable(task['func']):
             try:
